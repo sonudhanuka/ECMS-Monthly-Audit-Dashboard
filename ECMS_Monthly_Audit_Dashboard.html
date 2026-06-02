@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ECMS Monthly Audit Dashboard — CW14–CW17</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg:#06090f; --surface:#0c1118; --surface2:#111822;
+  --border:rgba(80,110,180,0.12); --border2:rgba(80,110,180,0.22);
+  --blue:#3d8ef0; --teal:#00c49a; --orange:#f07832; --red:#e84060;
+  --gold:#e8b832; --text:#d8e4f4; --muted:#4e607e; --muted2:#6a7e9e;
+  --fs-xs:11px; --fs-sm:13px; --fs-base:14px; --fs-md:15px;
+  --fs-lg:17px; --fs-xl:22px; --fs-2xl:32px; --fs-3xl:42px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;font-size:var(--fs-base);min-height:100vh;position:relative}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;background-image:linear-gradient(rgba(61,142,240,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(61,142,240,0.025) 1px,transparent 1px);background-size:48px 48px;z-index:0}
+.wrap{max-width:1400px;margin:0 auto;padding:24px 20px;position:relative;z-index:1}
+
+/* HEADER */
+.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:16px}
+.logo-tile{width:48px;height:48px;border-radius:12px;background:linear-gradient(135deg,var(--blue),var(--teal));display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#fff;flex-shrink:0}
+.header-left{display:flex;align-items:center;gap:14px}
+.header-left h1{font-size:var(--fs-xl);font-weight:700;color:var(--text)}
+.header-left p{font-size:var(--fs-sm);color:var(--muted2);margin-top:2px}
+.header-chips{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.chip{padding:4px 10px;border-radius:20px;font-size:var(--fs-xs);font-family:'JetBrains Mono',monospace;font-weight:500;border:1px solid;white-space:nowrap}
+.chip-teal{color:var(--teal);border-color:rgba(0,196,154,0.3);background:rgba(0,196,154,0.07)}
+.chip-blue{color:var(--blue);border-color:rgba(61,142,240,0.3);background:rgba(61,142,240,0.07)}
+.chip-gold{color:var(--gold);border-color:rgba(232,184,50,0.3);background:rgba(232,184,50,0.07)}
+
+/* FILTER BAR */
+.filter-bar{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 20px;margin-bottom:24px;display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.filter-bar select,.filter-bar input{background:var(--surface2);color:var(--text);border:1px solid var(--border2);border-radius:8px;padding:8px 12px;font-size:var(--fs-sm);font-family:'Inter',sans-serif;outline:none;cursor:pointer;min-width:140px}
+.filter-bar select:focus,.filter-bar input:focus{border-color:var(--blue)}
+.filter-bar input::placeholder{color:var(--muted2)}
+.btn-reset{background:transparent;border:1px solid var(--red);color:var(--red);border-radius:8px;padding:8px 16px;font-size:var(--fs-sm);font-family:'Inter',sans-serif;cursor:pointer;transition:all .2s}
+.btn-reset:hover{background:rgba(232,64,96,0.1)}
+.record-counter{margin-left:auto;font-size:var(--fs-xs);font-family:'JetBrains Mono',monospace;color:var(--muted2);white-space:nowrap}
+
+/* KPI CARDS */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px}
+.kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;position:relative;overflow:hidden}
+.kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.kpi-blue::before{background:linear-gradient(90deg,var(--blue),rgba(61,142,240,0))}
+.kpi-teal::before{background:linear-gradient(90deg,var(--teal),rgba(0,196,154,0))}
+.kpi-gold::before{background:linear-gradient(90deg,var(--gold),rgba(232,184,50,0))}
+.kpi-red::before{background:linear-gradient(90deg,var(--red),rgba(232,64,96,0))}
+.kpi-label{font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--muted2);margin-bottom:8px}
+.kpi-value{font-size:var(--fs-3xl);font-weight:700;font-family:'JetBrains Mono',monospace;line-height:1}
+.kpi-sub{font-size:var(--fs-xs);color:var(--muted);margin-top:6px}
+.kpi-bar-wrap{height:4px;background:var(--surface2);border-radius:2px;margin-top:10px;overflow:hidden}
+.kpi-bar{height:100%;border-radius:2px;transition:width .6s ease}
+.kpi-blue .kpi-value{color:var(--blue)} .kpi-teal .kpi-value{color:var(--teal)}
+.kpi-gold .kpi-value{color:var(--gold)} .kpi-red .kpi-value{color:var(--red)}
+
+/* SECTIONS */
+.section{margin-bottom:28px}
+.section-title{font-size:var(--fs-lg);font-weight:600;color:var(--text);margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.section-title::before{content:'';width:4px;height:18px;border-radius:2px;background:var(--blue)}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:900px){.two-col{grid-template-columns:1fr}}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px}
+.card-title{font-size:var(--fs-md);font-weight:600;color:var(--text);margin-bottom:14px}
+
+/* WEEK CARDS */
+.week-cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+.week-card{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px}
+.week-label{font-size:var(--fs-xs);font-family:'JetBrains Mono',monospace;color:var(--muted2);margin-bottom:4px}
+.week-score{font-size:var(--fs-2xl);font-weight:700;font-family:'JetBrains Mono',monospace;line-height:1}
+.week-detail{font-size:var(--fs-xs);color:var(--muted2);margin-top:4px}
+
+/* SCORE PILLS */
+.pill{display:inline-block;padding:2px 8px;border-radius:10px;font-size:var(--fs-xs);font-family:'JetBrains Mono',monospace;font-weight:500;margin-top:6px}
+.p100{background:rgba(0,196,154,0.15);color:var(--teal);border:1px solid rgba(0,196,154,0.3)}
+.phigh{background:rgba(61,142,240,0.15);color:var(--blue);border:1px solid rgba(61,142,240,0.3)}
+.pmid{background:rgba(240,120,50,0.15);color:var(--orange);border:1px solid rgba(240,120,50,0.3)}
+.plow{background:rgba(232,64,96,0.15);color:var(--red);border:1px solid rgba(232,64,96,0.3)}
+
+/* TABLES */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:var(--fs-sm)}
+th{font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--muted2);padding:8px 10px;text-align:left;border-bottom:1px solid var(--border2);cursor:pointer;white-space:nowrap;user-select:none}
+th:hover{color:var(--text)}
+td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
+tr:hover td{background:rgba(61,142,240,0.04)}
+.sort-active{color:var(--blue) !important}
+
+/* NM TABLE expandable */
+.nm-row{cursor:pointer}
+.nm-row:hover td{background:rgba(232,64,96,0.05) !important}
+.comment-row td{background:rgba(0,0,0,0.2);padding:10px 14px;font-size:var(--fs-xs);color:var(--muted2);font-style:italic}
+.comment-row{display:none}
+.comment-row.open{display:table-row}
+
+/* TEAM TABLE progress bar */
+.pbar-wrap{width:100px;height:5px;background:var(--surface2);border-radius:3px;overflow:hidden;display:inline-block;vertical-align:middle;margin-right:6px}
+.pbar-fill{height:100%;border-radius:3px}
+
+/* TABS */
+.tabs{display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid var(--border)}
+.tab-btn{background:none;border:none;color:var(--muted2);font-family:'Inter',sans-serif;font-size:var(--fs-sm);font-weight:500;padding:8px 16px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .2s}
+.tab-btn.active{color:var(--blue);border-bottom-color:var(--blue)}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+
+/* PERFECT GRID */
+.perfect-grid{display:flex;flex-wrap:wrap;gap:10px}
+.perfect-card{background:var(--surface2);border:1px solid rgba(0,196,154,0.2);border-radius:10px;padding:12px 14px;min-width:140px}
+.perfect-name{font-size:var(--fs-sm);font-weight:600;color:var(--text)}
+.perfect-team{font-size:var(--fs-xs);color:var(--muted2);margin-top:2px}
+.perfect-score{font-size:var(--fs-xs);font-family:'JetBrains Mono',monospace;color:var(--teal);margin-top:6px}
+
+/* HIGHLIGHT */
+.hl{background:rgba(232,184,50,0.22);border-radius:2px;padding:0 1px}
+
+/* EXEC SUMMARY */
+.exec-wrap{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;margin-bottom:24px}
+.exec-top{background:linear-gradient(135deg,rgba(61,142,240,0.15),rgba(0,196,154,0.1));border-bottom:1px solid var(--border2);padding:24px}
+.exec-top h2{font-size:var(--fs-xl);font-weight:700;margin-bottom:4px}
+.exec-top p{font-size:var(--fs-sm);color:var(--muted2);margin-bottom:18px}
+.exec-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+@media(max-width:700px){.exec-kpis{grid-template-columns:1fr 1fr}}
+.exec-kpi{background:rgba(0,0,0,0.25);border-radius:10px;padding:14px;text-align:center}
+.exec-kpi-val{font-size:24px;font-weight:700;font-family:'JetBrains Mono',monospace}
+.exec-kpi-lbl{font-size:var(--fs-xs);color:var(--muted2);margin-top:4px;text-transform:uppercase;letter-spacing:.5px}
+.exec-body{padding:24px}
+.exec-cols{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px}
+@media(max-width:800px){.exec-cols{grid-template-columns:1fr}}
+.exec-section-title{font-size:var(--fs-md);font-weight:600;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.exec-item{display:flex;gap:12px;margin-bottom:14px}
+.exec-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.exec-item-text strong{font-size:var(--fs-sm);font-weight:600;display:block;margin-bottom:2px}
+.exec-item-text span{font-size:var(--fs-xs);color:var(--muted2);line-height:1.5}
+.reco-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
+.reco-card{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px}
+.reco-num{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:var(--fs-xs);font-weight:700;margin-bottom:8px}
+.reco-title{font-size:var(--fs-sm);font-weight:600;margin-bottom:6px}
+.reco-body{font-size:var(--fs-xs);color:var(--muted2);line-height:1.6}
+.exec-foot{background:rgba(0,0,0,0.2);border-top:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.trend-chips{display:flex;gap:8px;flex-wrap:wrap}
+.trend-chip{font-size:var(--fs-xs);font-family:'JetBrains Mono',monospace;padding:3px 8px;border-radius:4px;border:1px solid var(--border2);color:var(--muted2)}
+.trend-chip.up{color:var(--teal);border-color:rgba(0,196,154,0.3)}
+.trend-chip.down{color:var(--red);border-color:rgba(232,64,96,0.3)}
+.exec-ts{font-size:var(--fs-xs);font-family:'JetBrains Mono',monospace;color:var(--muted)}
+
+/* FOOTER */
+.footer{text-align:center;padding:16px;font-size:var(--fs-xs);font-family:'JetBrains Mono',monospace;color:var(--muted);border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-left">
+    <div class="logo-tile">EC</div>
+    <div>
+      <h1>ECMS Monthly Audit Dashboard</h1>
+      <p>IMS Tower · Quality Audit · CW14 – CW17 · April 2026</p>
+    </div>
+  </div>
+  <div class="header-chips">
+    <span class="chip chip-teal">● Live Filters</span>
+    <span class="chip chip-blue">IMS Tower</span>
+    <span class="chip chip-gold" id="filter-status-chip">All Records</span>
+  </div>
+</div>
+
+<!-- FILTER BAR -->
+<div class="filter-bar">
+  <select id="f-week"><option value="">All Weeks</option></select>
+  <select id="f-team"><option value="">All Teams</option></select>
+  <select id="f-eval">
+    <option value="">All Evaluations</option>
+    <option value="Met">Met</option>
+    <option value="Not Met">Not Met</option>
+  </select>
+  <input type="text" id="f-agent" placeholder="🔍 Search agent…">
+  <button class="btn-reset" onclick="resetFilters()">Reset Filters</button>
+  <div class="record-counter" id="record-counter">Showing — records</div>
+</div>
+
+<!-- KPI CARDS -->
+<div class="kpi-row">
+  <div class="kpi-card kpi-blue">
+    <div class="kpi-label">Audited Tickets</div>
+    <div class="kpi-value" id="kpi-tickets">—</div>
+    <div class="kpi-sub" id="kpi-tickets-sub">of 366 total</div>
+  </div>
+  <div class="kpi-card kpi-teal">
+    <div class="kpi-label">Total Parameters</div>
+    <div class="kpi-value" id="kpi-params">—</div>
+    <div class="kpi-sub" id="kpi-params-sub">audit checks evaluated</div>
+  </div>
+  <div class="kpi-card kpi-gold">
+    <div class="kpi-label">Quality Score</div>
+    <div class="kpi-value" id="kpi-score">—</div>
+    <div class="kpi-bar-wrap"><div class="kpi-bar" id="kpi-score-bar" style="background:var(--gold)"></div></div>
+    <div class="kpi-sub" id="kpi-score-sub">overall compliance rate</div>
+  </div>
+  <div class="kpi-card kpi-teal">
+    <div class="kpi-label">Met Count</div>
+    <div class="kpi-value" id="kpi-met">—</div>
+    <div class="kpi-sub">parameters compliant</div>
+  </div>
+  <div class="kpi-card kpi-red">
+    <div class="kpi-label">Not Met Count</div>
+    <div class="kpi-value" id="kpi-nm">—</div>
+    <div class="kpi-bar-wrap"><div class="kpi-bar" id="kpi-nm-bar" style="background:var(--red)"></div></div>
+    <div class="kpi-sub">non-compliant parameters</div>
+  </div>
+</div>
+
+<!-- WEEKLY TREND -->
+<div class="section">
+  <div class="section-title">Weekly Trend</div>
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title">Week-by-Week Performance</div>
+      <div class="week-cards" id="week-cards"></div>
+      <div style="position:relative;height:180px"><canvas id="chartLine"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Met vs Not Met Distribution</div>
+      <div style="position:relative;height:260px"><canvas id="chartDoughnut"></canvas></div>
+      <div id="doughnut-legend" style="margin-top:12px;display:flex;gap:20px;justify-content:center;font-size:var(--fs-xs);font-family:'JetBrains Mono',monospace"></div>
+    </div>
+  </div>
+</div>
+
+<!-- TEAM PERFORMANCE -->
+<div class="section">
+  <div class="section-title">Team-wise Performance</div>
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title">Team Breakdown</div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Team</th><th>Distribution</th><th>Tickets</th><th>Met/Total</th><th>Score</th></tr></thead>
+          <tbody id="team-table-body"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Team Quality Scores</div>
+      <div style="position:relative;height:280px"><canvas id="chartTeamBar"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- NON-COMPLIANCE -->
+<div class="section">
+  <div class="section-title">Non-Compliance Analysis</div>
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title">Failing Audit Parameters</div>
+      <div style="position:relative;height:280px"><canvas id="chartPareto"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Not-Met Tickets <span style="font-size:var(--fs-xs);color:var(--muted2);font-weight:400">(click row to expand comment)</span></div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Ticket ID</th><th>Week</th><th>Team</th><th>Agent</th><th>Parameter</th></tr></thead>
+          <tbody id="nm-table-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ENGINEER PERFORMANCE -->
+<div class="section">
+  <div class="section-title">Engineer Performance</div>
+  <div class="card">
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab(0)">All Engineers</button>
+      <button class="tab-btn" onclick="switchTab(1)">Perfect Score (100%)</button>
+      <button class="tab-btn" onclick="switchTab(2)">Needs Attention</button>
+    </div>
+    <div class="tab-panel active" id="tab0">
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>#</th>
+            <th onclick="sortEngineers('name')">Engineer <span id="sh-name"></span></th>
+            <th onclick="sortEngineers('team')">Team <span id="sh-team"></span></th>
+            <th onclick="sortEngineers('met')">Met <span id="sh-met"></span></th>
+            <th onclick="sortEngineers('notMet')">Not Met <span id="sh-notMet"></span></th>
+            <th onclick="sortEngineers('total')">Total <span id="sh-total"></span></th>
+            <th onclick="sortEngineers('tickets')">Tickets <span id="sh-tickets"></span></th>
+            <th onclick="sortEngineers('score')">Score <span id="sh-score"></span></th>
+          </tr></thead>
+          <tbody id="eng-table-body"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="tab-panel" id="tab1">
+      <div class="perfect-grid" id="perfect-grid"></div>
+    </div>
+    <div class="tab-panel" id="tab2">
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Engineer</th><th>Team</th><th>Met</th><th>Not Met</th><th>Score</th><th>Recommended Action</th></tr></thead>
+          <tbody id="attn-table-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCORE VISUALIZATION -->
+<div class="section">
+  <div class="section-title">Engineer Score Visualization</div>
+  <div class="card">
+    <div class="card-title">Non-100% Engineers — Score Distribution (Ascending)</div>
+    <div style="position:relative;height:320px"><canvas id="chartEngBar"></canvas></div>
+  </div>
+</div>
+
+<!-- EXECUTIVE SUMMARY -->
+<div class="exec-wrap">
+  <div class="exec-top">
+    <h2>Executive Summary</h2>
+    <p>Leadership review — ECMS IMS Tower · April 2026 · CW14–CW17</p>
+    <div class="exec-kpis">
+      <div class="exec-kpi">
+        <div class="exec-kpi-val" id="exec-score" style="color:var(--teal)">—</div>
+        <div class="exec-kpi-lbl">Overall Score</div>
+      </div>
+      <div class="exec-kpi">
+        <div class="exec-kpi-val" id="exec-tickets" style="color:var(--blue)">—</div>
+        <div class="exec-kpi-lbl">Tickets Audited</div>
+      </div>
+      <div class="exec-kpi">
+        <div class="exec-kpi-val" id="exec-engineers" style="color:var(--gold)">—</div>
+        <div class="exec-kpi-lbl">Engineers</div>
+      </div>
+      <div class="exec-kpi">
+        <div class="exec-kpi-val" id="exec-noncompliant" style="color:var(--red)">—</div>
+        <div class="exec-kpi-lbl">Non-Compliant</div>
+      </div>
+    </div>
+  </div>
+  <div class="exec-body">
+    <div class="exec-cols">
+      <div>
+        <div class="exec-section-title"><span class="dot" style="background:var(--teal)"></span>Strengths</div>
+        <div class="exec-item">
+          <div class="exec-icon" style="background:rgba(0,196,154,0.1);color:var(--teal)">✓</div>
+          <div class="exec-item-text"><strong>99.5% Overall Quality Score</strong><span>The IMS tower delivered an outstanding 99.53% compliance rate across 3,384 audit parameters. Only 16 non-compliances were recorded, reflecting disciplined process adherence.</span></div>
+        </div>
+        <div class="exec-item">
+          <div class="exec-icon" style="background:rgba(0,196,154,0.1);color:var(--teal)">📈</div>
+          <div class="exec-item-text"><strong>Improving Weekly Trend</strong><span>CW17 achieved the lowest Not-Met count (2) of the entire review period, marking a clear upward trajectory. The quality score improved from 99.47% in CW14 to 99.75% in CW17.</span></div>
+        </div>
+        <div class="exec-item">
+          <div class="exec-icon" style="background:rgba(0,196,154,0.1);color:var(--teal)">🏆</div>
+          <div class="exec-item-text"><strong>Workplace & Network Teams Leading</strong><span>Workplace team achieved 99.88% score across 171 tickets, and Workplace had only 2 non-compliances. Multiple teams demonstrate consistent adherence to audit parameters.</span></div>
+        </div>
+        <div class="exec-item">
+          <div class="exec-icon" style="background:rgba(0,196,154,0.1);color:var(--teal)">👥</div>
+          <div class="exec-item-text"><strong>High Perfect-Score Engineer Count</strong><span>The majority of engineers (46 out of 56) achieved a perfect 100% compliance score during the review period. This demonstrates strong overall team capability and process awareness.</span></div>
+        </div>
+      </div>
+      <div>
+        <div class="exec-section-title"><span class="dot" style="background:var(--red)"></span>Areas Requiring Improvement</div>
+        <div class="exec-item">
+          <div class="exec-icon" style="background:rgba(232,64,96,0.1);color:var(--red)">⚠</div>
+          <div class="exec-item-text"><strong>Closure Information — 100% of Failures</strong><span>All 16 Not-Met records are attributed to a single parameter: Closure Information. This indicates a systemic gap in the closure template adoption rather than broad non-compliance.</span></div>
+        </div>
+        <div class="exec-item">
+          <div class="exec-icon" style="background:rgba(232,64,96,0.1);color:var(--red)">🔒</div>
+          <div class="exec-item-text"><strong>Security Team — 95.8% Score</strong><span>Security team recorded 3 Not-Met instances across 72 parameters, the lowest score among all teams. Targeted coaching around closure template usage is recommended urgently.</span></div>
+        </div>
+        <div class="exec-item">
+          <div class="exec-icon" style="background:rgba(232,64,96,0.1);color:var(--red)">🔁</div>
+          <div class="exec-item-text"><strong>Recurring Offenders Identified</strong><span>Sharukh Razeen A (Network) had 3 Not-Met instances and Prakhar Saini (Security) had 2. Ruchi Vinod Bopche (Service Desk) also had 2 across separate weeks, indicating persistence.</span></div>
+        </div>
+        <div class="exec-item">
+          <div class="exec-icon" style="background:rgba(232,64,96,0.1);color:var(--red)">📋</div>
+          <div class="exec-item-text"><strong>Template Adoption Inconsistency</strong><span>Comments reveal varied failure modes: missing RCA sections, null close codes, and 3-strike process mismatches. Standardisation of the closure template workflow is critical.</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="exec-section-title" style="margin-bottom:14px"><span class="dot" style="background:var(--gold)"></span>Leadership Recommendations</div>
+    <div class="reco-grid">
+      <div class="reco-card">
+        <div class="reco-num" style="background:rgba(232,64,96,0.15);color:var(--red)">1</div>
+        <div class="reco-title">Mandatory Closure Template Refresher</div>
+        <div class="reco-body">Issue a mandatory closure template SOP refresher to all IMS engineers. Ensure the updated template includes explicit RCA and preventive measures sections. Schedule within CW18 as an urgent action item.</div>
+      </div>
+      <div class="reco-card">
+        <div class="reco-num" style="background:rgba(232,64,96,0.15);color:var(--red)">2</div>
+        <div class="reco-title">1:1 Coaching — Bottom Engineers</div>
+        <div class="reco-body">Schedule immediate 1:1 coaching sessions for Sharukh Razeen A, Prakhar Saini, and Ruchi Vinod Bopche. Focus sessions on closure SOP, close code accuracy, and RCA documentation requirements.</div>
+      </div>
+      <div class="reco-card">
+        <div class="reco-num" style="background:rgba(232,184,50,0.15);color:var(--gold)">3</div>
+        <div class="reco-title">Recognise CW17 Performance</div>
+        <div class="reco-body">Acknowledge the CW17 improvement formally in team communications. The reduction from 6 Not-Met (CW15) to 2 (CW17) reflects effective corrective action. Recognising this reinforces desired behaviour.</div>
+      </div>
+      <div class="reco-card">
+        <div class="reco-num" style="background:rgba(232,64,96,0.15);color:var(--red)">4</div>
+        <div class="reco-title">Security Team Structured Review</div>
+        <div class="reco-body">Conduct a structured quality review specifically for the Security team. The 95.8% score is the lowest across all towers and requires dedicated process alignment. Target 100% in CW18.</div>
+      </div>
+      <div class="reco-card">
+        <div class="reco-num" style="background:rgba(61,142,240,0.15);color:var(--blue)">5</div>
+        <div class="reco-title">Standardise Close Code Policy</div>
+        <div class="reco-body">Establish a clear close code selection guide and integrate it into ticket management tooling where possible. Null close codes and 3-strike mismatches indicate a gap between policy and practice.</div>
+      </div>
+      <div class="reco-card">
+        <div class="reco-num" style="background:rgba(0,196,154,0.15);color:var(--teal)">6</div>
+        <div class="reco-title">Replicate Best Practices</div>
+        <div class="reco-body">Document and share the workflows of top-performing engineers (Komal Rao, Sarthak Shah, Ankita Uttekar) as internal best-practice guides. Peer learning from exemplars accelerates team-wide quality improvement.</div>
+      </div>
+    </div>
+  </div>
+  <div class="exec-foot">
+    <div class="trend-chips">
+      <span class="trend-chip">CW14 → 99.47%</span>
+      <span class="trend-chip down">CW15 → 99.30% ↓</span>
+      <span class="trend-chip">CW16 → 99.62% ↑</span>
+      <span class="trend-chip up">CW17 → 99.75% ↑</span>
+    </div>
+    <div class="exec-ts" id="exec-ts"></div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div class="footer" id="dash-footer"></div>
+
+</div><!-- /wrap -->
+
+<script>
+Chart.defaults.color = '#4e607e';
+Chart.defaults.font.family = "'Inter', sans-serif";
+Chart.defaults.font.size = 12;
+
+// ── DATA ──────────────────────────────────────────────────────────────
+const TOTAL_MET_ALL = 3368, TOTAL_NM_ALL = 16, TOTAL_PARAMS_ALL = 3384, TOTAL_TICKETS_ALL = 366;
+
+const AGENT_STATS = {"Aarti Lasure":{"met":117,"notMet":0,"team":"Workplace","tickets":12},"Abdul Kadar Aiyaz Mohiuddin":{"met":45,"notMet":0,"team":"Workplace","tickets":5},"Abhinav Pandey":{"met":27,"notMet":0,"team":"Network","tickets":3},"Abhishek B Biju Raj":{"met":17,"notMet":1,"team":"Cloud","tickets":2},"Abigyat Snehi":{"met":8,"notMet":1,"team":"Security","tickets":1},"Afnan Khalid":{"met":72,"notMet":0,"team":"Service Desk","tickets":8},"Akanksha Kharche":{"met":9,"notMet":0,"team":"Cloud","tickets":1},"Akshay Ramteke":{"met":108,"notMet":0,"team":"Service Desk","tickets":12},"Alok Kumar":{"met":144,"notMet":0,"team":"Workplace","tickets":16},"Aman Tiwari":{"met":9,"notMet":0,"team":"Service Desk","tickets":1},"Anchal Tiwari":{"met":18,"notMet":0,"team":"Cloud","tickets":2},"Ankita Uttekar":{"met":162,"notMet":0,"team":"Service Desk","tickets":18},"Apeksha Jadhav":{"met":8,"notMet":1,"team":"Cloud","tickets":1},"Archana Rajeshram Kahar":{"met":81,"notMet":0,"team":"Workplace","tickets":8},"Ashit Gangwar":{"met":90,"notMet":0,"team":"Workplace","tickets":10},"Bhagyesh Mandole":{"met":18,"notMet":0,"team":"Workplace","tickets":2},"Chandralekha Shesanala":{"met":17,"notMet":1,"team":"Service Desk","tickets":2},"Gaurav Shinde":{"met":27,"notMet":0,"team":"Network","tickets":3},"Habib Shaikh":{"met":63,"notMet":0,"team":"Service Desk","tickets":7},"Haripriya Dariboyina":{"met":117,"notMet":0,"team":"Workplace","tickets":13},"Junaid Ahmed":{"met":9,"notMet":0,"team":"Service Desk","tickets":1},"Komal Rao":{"met":189,"notMet":0,"team":"Workplace","tickets":20},"Lavanya Venkatarathnaiah":{"met":9,"notMet":0,"team":"Network","tickets":1},"Manik Borvadkar":{"met":54,"notMet":0,"team":"Workplace","tickets":5},"Manish Sonekar":{"met":108,"notMet":0,"team":"Workplace","tickets":11},"Niki Singh":{"met":9,"notMet":0,"team":"Workplace","tickets":1},"Nikita A. Kapgate":{"met":36,"notMet":0,"team":"Workplace","tickets":4},"Nikita Chari":{"met":18,"notMet":0,"team":"Workplace","tickets":2},"Paramraj Singh":{"met":18,"notMet":0,"team":"Network","tickets":2},"Pavan Kalyan s":{"met":36,"notMet":0,"team":"Service Desk","tickets":4},"Prakarsh Pandey":{"met":18,"notMet":0,"team":"Security","tickets":2},"Prakhar Saini":{"met":16,"notMet":2,"team":"Security","tickets":2},"Priyanka Anand":{"met":27,"notMet":0,"team":"Security","tickets":3},"Rahul Francis":{"met":9,"notMet":0,"team":"Workplace","tickets":1},"Rishabh Shrivastava":{"met":72,"notMet":0,"team":"Workplace","tickets":8},"Ruchi Vinod Bopche":{"met":137,"notMet":2,"team":"Service Desk","tickets":16},"SURAJ MOHANDAS":{"met":71,"notMet":1,"team":"Workplace","tickets":8},"Sabhyatha Suvarna":{"met":144,"notMet":0,"team":"Service Desk","tickets":15},"Sakshi Jagtap":{"met":45,"notMet":0,"team":"Service Desk","tickets":5},"Sarthak Shah":{"met":198,"notMet":0,"team":"Workplace","tickets":19},"Shahabaz Zainuddin Bagwan":{"met":18,"notMet":0,"team":"Cloud","tickets":2},"Shajid Jamil":{"met":17,"notMet":1,"team":"Cloud","tickets":2},"Sharukh Razeen A":{"met":47,"notMet":3,"team":"Network","tickets":5},"Shivani Nimse":{"met":18,"notMet":0,"team":"Cloud","tickets":2},"Shubham Patil":{"met":18,"notMet":0,"team":"Network","tickets":2},"Shweta R. Hebbal":{"met":8,"notMet":1,"team":"Network","tickets":1},"Sneha Zunake":{"met":36,"notMet":0,"team":"Cloud","tickets":4},"Sreerag Narayanan":{"met":35,"notMet":1,"team":"Workplace","tickets":4},"Sudarshan Jadhav":{"met":18,"notMet":0,"team":"Network","tickets":2},"Suman Aradhya A R":{"met":45,"notMet":0,"team":"Service Desk","tickets":5},"Surendra Paruchuri":{"met":9,"notMet":0,"team":"Workplace","tickets":1},"Vaishnavi Agawane":{"met":81,"notMet":0,"team":"Workplace","tickets":9},"Vaishnavi Chaudhari":{"met":108,"notMet":0,"team":"Workplace","tickets":12},"Vaishnavi Pawar":{"met":22,"notMet":0,"team":"Network","tickets":3},"Writojaya Dey":{"met":8,"notMet":1,"team":"Service Desk","tickets":1},"mithraa Supramanian":{"met":149,"notMet":0,"team":"Service Desk","tickets":17}};
+
+const WEEKLY = {"CW14":{"met":931,"notMet":5,"total":936,"tickets":104},"CW15":{"met":849,"notMet":6,"total":855,"tickets":88},"CW16":{"met":780,"notMet":3,"total":783,"tickets":87},"CW17":{"met":808,"notMet":2,"total":810,"tickets":90}};
+
+const NM_RECORDS = [{"Week":"CW14","Ticket Number":"INC56052293","Audit Parameter":"Closure Information","Evaluation":"Not Met","Tower":"IMS","Teams":"Security","Agent":"Prakhar Saini","Comments":"New closure template not followed"},{"Week":"CW14","Ticket Number":"INC56166531","Audit Parameter":"Closure Information","Evaluation":"Not Met","Tower":"IMS","Teams":"Security","Agent":"Abigyat Snehi","Comments":"New closure template not followed"},{"Week":"CW14","Ticket Number":"INC56204600","Audit Parameter":"Closure Information","Evaluation":"Not Met","Tower":"IMS","Teams":"Cloud","Agent":"Apeksha Jadhav","Comments":"The ticket was closed using the 3-strike process, but the close code does not reflect this."},{"Week":"CW14","Ticket Number":"INC56206932","Audit Parameter":"Closure Information","Evaluation":"Not Met","Tower":"IMS","Teams":"Service Desk","Agent":"Writojaya Dey","Comments":"New closure template not followed"},{"Week":"CW14","Ticket Number":"INC56254753","Audit Parameter":"Closure Information","Evaluation":"Not Met","Tower":"IMS","Teams":"Service Desk","Agent":"Chandralekha Shesanala","Comments":"Close code is null"},{"Week":"CW15","Ticket Number":"INC56373053","Audit Parameter":"Closure Information","Evaluation":"Not Met","Tower":"IMS","Teams":"Cloud","Agent":"Abhishek B Biju Raj","Comments":"One point is missing in the closure template"},{"Week":"CW15","Ticket Number":"INC56149475","Audit Parameter":"Closure Information","Evaluation":"Not Met","Tower":"IMS","Teams":"Network","Agent":"Sharukh Razeen A","Comments":"New closure template not followed"},{"Week":"CW15","Ticket Number":"INC56270010","Audit Parameter":"Closure Information","Evaluation":"Not Met","Tower":"IMS","Teams":"Network","Agent":"Sharukh Razeen A","Comments":"Root Cause Analysis and Preventive Measures: template not followed"},{"Week":"CW15","Ticket Number":"INC56149475","Audit Parameter":"Closure Information","Evaluation":"Not Met","Tower":"IMS","Teams":"Network","Agent":"Sharukh Razeen A","Comments":"Root Cause Analysis and Preventive Measures step is not mentioned in the closure template"},{"Week":"CW15","Ticket Number":"INC56253551","Audit Parameter":"Closure Information","Evaluation":"Not Met","Tower":"IMS","Teams":"Security","Agent":"Prakhar Saini","Comments":"Closure template is not followed"},{"Week":"CW15","Ticket Number":"INC56218121","Audit Parameter":"Closure Information","Evaluation":"Not Met","Tower":"IMS","Teams":"Workplace","Agent":"Sreerag Narayanan","Comments":"New closure template not followed"},{"Week":"CW16","Ticket Number":"INC56405380","Audit Parameter":"Closure Information","Evaluation":"Not Met","Tower":"IMS","Teams":"Network","Agent":"Shweta R. Hebbal","Comments":"Closure template is not attached in closure information"},{"Week":"CW16","Ticket Number":"INC56407764","Audit Parameter":"Closure Information","Evaluation":"Not Met","Tower":"IMS","Teams":"Workplace","Agent":"SURAJ MOHANDAS","Comments":"In closure template - Root Cause Analysis and Preventive Measures cannot be NA"},{"Week":"CW16","Ticket Number":"INC56522362","Audit Parameter":"Closure Information","Evaluation":"Not Met","Tower":"IMS","Teams":"Service Desk","Agent":"Ruchi Vinod Bopche","Comments":"New closure template not followed"},{"Week":"CW17","Ticket Number":"INC56572172","Audit Parameter":"Closure Information","Evaluation":"Not Met","Tower":"IMS","Teams":"Cloud","Agent":"Shajid Jamil","Comments":"Closure template not followed."},{"Week":"CW17","Ticket Number":"INC56497608","Audit Parameter":"Closure Information","Evaluation":"Not Met","Tower":"IMS","Teams":"Service Desk","Agent":"Ruchi Vinod Bopche","Comments":"Closure template not used"}];
+
+// ── CHART INSTANCES ──────────────────────────────────────────────────
+let chartLine, chartDoughnut, chartTeamBar, chartPareto, chartEngBar;
+
+// ── SORT STATE ───────────────────────────────────────────────────────
+let sortCol = 'score', sortDir = 1;
+
+// ── HELPERS ───────────────────────────────────────────────────────────
+function scoreColor(pct) {
+  if (pct >= 100) return '#00c49a';
+  if (pct >= 95) return '#3d8ef0';
+  if (pct >= 90) return '#f07832';
+  return '#e84060';
+}
+function pillClass(pct) {
+  if (pct >= 100) return 'p100';
+  if (pct >= 95) return 'phigh';
+  if (pct >= 90) return 'pmid';
+  return 'plow';
+}
+function hl(text, term) {
+  if (!term) return text;
+  const re = new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`, 'gi');
+  return String(text).replace(re, '<span class="hl">$1</span>');
+}
+function fmt(n) { return n.toLocaleString(); }
+function pct(met, total) { return total ? (met/total*100) : 0; }
+
+// ── BUILD TEAM STATS MAP ───────────────────────────────────────────────
+function buildTeamStats(agents) {
+  const map = {};
+  Object.entries(agents).forEach(([name, a]) => {
+    if (!map[a.team]) map[a.team] = { met:0, notMet:0, tickets:0 };
+    map[a.team].met += a.met;
+    map[a.team].notMet += a.notMet;
+    map[a.team].tickets += a.tickets;
+  });
+  return map;
+}
+
+// ── FILTERS ───────────────────────────────────────────────────────────
+function getFilters() {
+  return {
+    week: document.getElementById('f-week').value,
+    team: document.getElementById('f-team').value,
+    eval: document.getElementById('f-eval').value,
+    agent: document.getElementById('f-agent').value.trim().toLowerCase()
+  };
+}
+
+function filterAgents(f) {
+  const result = {};
+  Object.entries(AGENT_STATS).forEach(([name, a]) => {
+    if (f.team && a.team !== f.team) return;
+    if (f.agent && !name.toLowerCase().includes(f.agent)) return;
+    result[name] = { ...a };
+  });
+  return result;
+}
+
+function filterNM(f) {
+  return NM_RECORDS.filter(r => {
+    if (f.week && r.Week !== f.week) return false;
+    if (f.team && r.Teams !== f.team) return false;
+    if (f.eval && r.Evaluation !== f.eval) return false;
+    if (f.agent && !r.Agent.toLowerCase().includes(f.agent)) return false;
+    return true;
+  });
+}
+
+function filterWeekly(f, agents) {
+  if (!f.week && !f.team && !f.agent && !f.eval) return WEEKLY;
+  // Recompute from NM and agent stats
+  const weeks = {};
+  Object.keys(WEEKLY).forEach(w => weeks[w] = { met:0, notMet:0, total:0, tickets:new Set() });
+  // We'll approximate from NM records for notMet
+  const nm = filterNM({ ...f, eval: '' });
+  nm.forEach(r => {
+    if (!weeks[r.Week]) weeks[r.Week] = { met:0, notMet:0, total:0, tickets:new Set() };
+    weeks[r.Week].notMet++;
+  });
+  // For met, use agent stats adjusted for week filter
+  // Since we don't have per-week per-agent breakdown easily, use full WEEKLY adjusted
+  const result = {};
+  Object.keys(WEEKLY).forEach(w => {
+    if (f.week && w !== f.week) return;
+    const base = WEEKLY[w];
+    let met = base.met, notMet = base.notMet, tickets = base.tickets;
+    if (f.team || f.agent) {
+      // Filter NM for this week+team/agent
+      const nmW = NM_RECORDS.filter(r => r.Week === w &&
+        (!f.team || r.Teams === f.team) &&
+        (!f.agent || r.Agent.toLowerCase().includes(f.agent)));
+      notMet = nmW.length;
+      // Approximate met from agent stats
+      const fa = filterAgents(f);
+      // Can't split per week easily; use proportion
+      met = base.met; // best approximation
+    }
+    result[w] = { met, notMet, total: met + notMet, tickets };
+  });
+  return result;
+}
+
+// ── POPULATE FILTERS ──────────────────────────────────────────────────
+function populateFilters() {
+  const wSel = document.getElementById('f-week');
+  Object.keys(WEEKLY).sort().forEach(w => {
+    const o = document.createElement('option'); o.value = w; o.textContent = w; wSel.appendChild(o);
+  });
+  const tSel = document.getElementById('f-team');
+  const teams = [...new Set(Object.values(AGENT_STATS).map(a => a.team))].sort();
+  teams.forEach(t => {
+    const o = document.createElement('option'); o.value = t; o.textContent = t; tSel.appendChild(o);
+  });
+}
+
+// ── RENDER KPIs ───────────────────────────────────────────────────────
+function renderKPIs(f) {
+  const fa = filterAgents(f);
+  let met = 0, notMet = 0, tickets = new Set();
+  Object.entries(fa).forEach(([n, a]) => {
+    if (f.eval === 'Not Met') { notMet += a.notMet; }
+    else if (f.eval === 'Met') { met += a.met; }
+    else { met += a.met; notMet += a.notMet; }
+    for (let i = 0; i < a.tickets; i++) tickets.add(n + '_' + i);
+  });
+  if (!f.team && !f.agent) {
+    // use ground truth filtered by week
+    if (f.week) {
+      const w = WEEKLY[f.week] || { met:0, notMet:0, total:0, tickets:0 };
+      met = f.eval === 'Not Met' ? 0 : w.met;
+      notMet = f.eval === 'Met' ? 0 : w.notMet;
+      const tCount = f.eval === '' ? w.total : (f.eval === 'Met' ? w.met : w.notMet);
+      document.getElementById('kpi-params').textContent = fmt(tCount);
+      document.getElementById('kpi-tickets').textContent = fmt(w.tickets);
+      document.getElementById('kpi-tickets-sub').textContent = 'of ' + fmt(TOTAL_TICKETS_ALL) + ' total';
+    } else {
+      const total = f.eval === 'Not Met' ? TOTAL_NM_ALL : (f.eval === 'Met' ? TOTAL_MET_ALL : TOTAL_PARAMS_ALL);
+      document.getElementById('kpi-params').textContent = fmt(total);
+      document.getElementById('kpi-tickets').textContent = fmt(TOTAL_TICKETS_ALL);
+      met = f.eval === 'Not Met' ? 0 : TOTAL_MET_ALL;
+      notMet = f.eval === 'Met' ? 0 : TOTAL_NM_ALL;
+    }
+  } else {
+    const total = met + notMet;
+    document.getElementById('kpi-params').textContent = fmt(total);
+    const t = [...new Set(Object.entries(fa).map(([n, a]) => n))].length;
+    document.getElementById('kpi-tickets').textContent = fmt(Object.values(fa).reduce((s,a) => s+a.tickets, 0));
+    document.getElementById('kpi-tickets-sub').textContent = 'of ' + fmt(TOTAL_TICKETS_ALL) + ' total';
+  }
+  const total = met + notMet || 1;
+  const score = (met / total * 100);
+  document.getElementById('kpi-met').textContent = fmt(met);
+  document.getElementById('kpi-nm').textContent = fmt(notMet);
+  document.getElementById('kpi-score').textContent = score.toFixed(2) + '%';
+  document.getElementById('kpi-score-bar').style.width = Math.min(score, 100) + '%';
+  document.getElementById('kpi-nm-bar').style.width = Math.min((notMet / total * 100) * 10, 100) + '%';
+}
+
+// ── RENDER WEEK CARDS ─────────────────────────────────────────────────
+function renderWeekCards(f) {
+  const con = document.getElementById('week-cards');
+  const weeks = f.week ? { [f.week]: WEEKLY[f.week] } : WEEKLY;
+  con.innerHTML = Object.entries(weeks).map(([w, d]) => {
+    const s = pct(d.met, d.total);
+    return `<div class="week-card">
+      <div class="week-label">${w}</div>
+      <div class="week-score" style="color:${scoreColor(s)}">${s.toFixed(2)}%</div>
+      <div class="week-detail">Met: ${fmt(d.met)} · NM: ${d.notMet}</div>
+      <span class="pill ${pillClass(s)}">${s >= 100 ? 'Perfect' : s.toFixed(1)+'%'}</span>
+    </div>`;
+  }).join('');
+}
+
+// ── RENDER RECORD COUNTER ─────────────────────────────────────────────
+function renderCounter(f) {
+  const nm = filterNM(f);
+  const fa = filterAgents(f);
+  const tickets = new Set(nm.map(r => r['Ticket Number']));
+  const totalRecs = Object.values(fa).reduce((s,a) => s+a.met+a.notMet, 0);
+  document.getElementById('record-counter').textContent =
+    `Showing ${fmt(totalRecs)} records across ${fmt(Object.values(fa).reduce((s,a)=>s+a.tickets,0))} tickets`;
+  // Update filter chip
+  const parts = [];
+  if (f.week) parts.push(f.week);
+  if (f.team) parts.push(f.team);
+  if (f.eval) parts.push(f.eval);
+  if (f.agent) parts.push('"' + f.agent + '"');
+  document.getElementById('filter-status-chip').textContent = parts.length ? parts.join(' · ') : 'All Records';
+}
+
+// ── CHARTS ────────────────────────────────────────────────────────────
+function initCharts() {
+  // Line Chart
+  chartLine = new Chart(document.getElementById('chartLine'), {
+    type: 'line',
+    data: { labels: [], datasets: [{ label: 'Quality Score %', data: [], borderColor: '#3d8ef0', backgroundColor: 'rgba(61,142,240,0.08)', tension: 0.4, fill: true, pointBackgroundColor: [], pointRadius: 5 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { min: 98, max: 100.2, ticks: { callback: v => v + '%' }, grid: { color: 'rgba(80,110,180,0.08)' } }, x: { grid: { color: 'rgba(80,110,180,0.08)' } } } }
+  });
+  // Doughnut
+  chartDoughnut = new Chart(document.getElementById('chartDoughnut'), {
+    type: 'doughnut',
+    data: { labels: ['Met', 'Not Met'], datasets: [{ data: [], backgroundColor: ['#00c49a', '#e84060'], borderWidth: 0, hoverOffset: 8 }] },
+    options: { responsive: true, maintainAspectRatio: false, cutout: '72%', plugins: { legend: { display: false } } }
+  });
+  // Team Bar
+  chartTeamBar = new Chart(document.getElementById('chartTeamBar'), {
+    type: 'bar',
+    data: { labels: [], datasets: [{ label: 'Score %', data: [], backgroundColor: [], borderRadius: 4, barThickness: 20 }] },
+    options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { min: 85, max: 101, ticks: { callback: v => v + '%' }, grid: { color: 'rgba(80,110,180,0.08)' } }, y: { grid: { display: false } } } }
+  });
+  // Pareto
+  chartPareto = new Chart(document.getElementById('chartPareto'), {
+    type: 'bar',
+    data: { labels: [], datasets: [{ label: 'Not Met', data: [], backgroundColor: '#e84060', borderRadius: 4, barThickness: 18 }] },
+    options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { ticks: { precision: 0 }, grid: { color: 'rgba(80,110,180,0.08)' } }, y: { grid: { display: false } } } }
+  });
+  // Engineer Bar
+  chartEngBar = new Chart(document.getElementById('chartEngBar'), {
+    type: 'bar',
+    data: { labels: [], datasets: [{ data: [], backgroundColor: [], borderRadius: 4, barThickness: 14 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { min: 80, max: 101, ticks: { callback: v => v + '%' }, grid: { color: 'rgba(80,110,180,0.08)' } }, x: { ticks: { maxRotation: 45, font: { size: 10 } }, grid: { display: false } } } }
+  });
+  renderAll(getFilters());
+}
+
+function updateLineChart(f) {
+  const weeks = f.week ? [f.week] : Object.keys(WEEKLY).sort();
+  const labels = weeks;
+  const scores = weeks.map(w => { const d = WEEKLY[w]; return pct(d.met, d.total); });
+  chartLine.data.labels = labels;
+  chartLine.data.datasets[0].data = scores;
+  chartLine.data.datasets[0].pointBackgroundColor = scores.map(s => scoreColor(s));
+  chartLine.update();
+}
+
+function updateDoughnut(f) {
+  const fa = filterAgents(f);
+  let met = 0, nm = 0;
+  if (!f.team && !f.agent && !f.eval) {
+    met = f.week ? WEEKLY[f.week]?.met ?? TOTAL_MET_ALL : TOTAL_MET_ALL;
+    nm = f.week ? WEEKLY[f.week]?.notMet ?? TOTAL_NM_ALL : TOTAL_NM_ALL;
+  } else {
+    Object.values(fa).forEach(a => { met += a.met; nm += a.notMet; });
+  }
+  chartDoughnut.data.datasets[0].data = [met, nm];
+  chartDoughnut.update();
+  const total = met + nm || 1;
+  document.getElementById('doughnut-legend').innerHTML =
+    `<span style="color:#00c49a">● Met: ${fmt(met)} (${(met/total*100).toFixed(1)}%)</span>
+     <span style="color:#e84060">● Not Met: ${fmt(nm)} (${(nm/total*100).toFixed(1)}%)</span>`;
+}
+
+function updateTeamChart(f) {
+  const fa = filterAgents(f);
+  const ts = buildTeamStats(fa);
+  const teams = Object.keys(ts).sort();
+  const scores = teams.map(t => pct(ts[t].met, ts[t].met + ts[t].notMet));
+  chartTeamBar.data.labels = teams;
+  chartTeamBar.data.datasets[0].data = scores;
+  chartTeamBar.data.datasets[0].backgroundColor = scores.map(s => scoreColor(s));
+  chartTeamBar.update();
+}
+
+function updateParetoChart(f) {
+  const nmF = filterNM(f);
+  const counts = {};
+  nmF.forEach(r => { counts[r['Audit Parameter']] = (counts[r['Audit Parameter']] || 0) + 1; });
+  const sorted = Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0,8);
+  chartPareto.data.labels = sorted.map(([k]) => k.length > 28 ? k.slice(0,26)+'…' : k);
+  chartPareto.data.datasets[0].data = sorted.map(([,v]) => v);
+  chartPareto.update();
+}
+
+function updateEngChart(f) {
+  const fa = filterAgents(f);
+  const eng = Object.entries(fa)
+    .map(([n, a]) => ({ name: n, score: pct(a.met, a.met + a.notMet), met: a.met, nm: a.notMet }))
+    .filter(e => e.score < 100)
+    .sort((a,b) => a.score - b.score);
+  const labels = eng.map(e => {
+    const parts = e.name.split(' ');
+    return parts.length > 1 ? parts[0] + ' ' + parts[parts.length-1][0] + '.' : parts[0];
+  });
+  chartEngBar.data.labels = labels;
+  chartEngBar.data.datasets[0].data = eng.map(e => e.score);
+  chartEngBar.data.datasets[0].backgroundColor = eng.map(e => scoreColor(e.score));
+  chartEngBar.update();
+}
+
+// ── RENDER TABLES ─────────────────────────────────────────────────────
+function renderTeamTable(f) {
+  const fa = filterAgents(f);
+  const ts = buildTeamStats(fa);
+  const tbody = document.getElementById('team-table-body');
+  tbody.innerHTML = Object.entries(ts).sort((a,b) => {
+    const sa = pct(a[1].met, a[1].met+a[1].notMet);
+    const sb = pct(b[1].met, b[1].met+b[1].notMet);
+    return sb - sa;
+  }).map(([team, d]) => {
+    const total = d.met + d.notMet;
+    const s = pct(d.met, total);
+    const pctVal = (total / (TOTAL_PARAMS_ALL) * 100).toFixed(1);
+    return `<tr>
+      <td>${team}</td>
+      <td><div class="pbar-wrap"><div class="pbar-fill" style="width:${pctVal}%;background:var(--blue)"></div></div>${pctVal}%</td>
+      <td style="font-family:'JetBrains Mono',monospace">${d.tickets}</td>
+      <td style="font-family:'JetBrains Mono',monospace">${fmt(d.met)}/${fmt(total)}</td>
+      <td><span class="pill ${pillClass(s)}">${s.toFixed(2)}%</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderNMTable(f) {
+  const nm = filterNM(f);
+  const agentTerm = f.agent;
+  const tbody = document.getElementById('nm-table-body');
+  tbody.innerHTML = nm.map((r, i) => `
+    <tr class="nm-row" onclick="toggleComment(${i})">
+      <td style="font-family:'JetBrains Mono',monospace;font-size:var(--fs-xs)">${r['Ticket Number']}</td>
+      <td><span class="pill phigh" style="font-size:10px">${r.Week}</span></td>
+      <td>${r.Teams}</td>
+      <td>${hl(r.Agent, agentTerm)}</td>
+      <td>${r['Audit Parameter']}</td>
+    </tr>
+    <tr class="comment-row" id="comment-${i}">
+      <td colspan="5">💬 ${r.Comments || 'No comment recorded'}</td>
+    </tr>
+  `).join('');
+}
+
+function toggleComment(i) {
+  const el = document.getElementById('comment-' + i);
+  if (el) el.classList.toggle('open');
+}
+
+function renderEngTable(f) {
+  const fa = filterAgents(f);
+  const agentTerm = f.agent;
+  const eng = Object.entries(fa).map(([n, a]) => ({
+    name: n, team: a.team, met: a.met, notMet: a.notMet,
+    total: a.met + a.notMet, tickets: a.tickets,
+    score: pct(a.met, a.met + a.notMet)
+  }));
+  // Sort
+  eng.sort((a, b) => {
+    const av = a[sortCol] !== undefined ? a[sortCol] : a.name;
+    const bv = b[sortCol] !== undefined ? b[sortCol] : b.name;
+    if (typeof av === 'string') return sortDir * av.localeCompare(bv);
+    return sortDir * (av - bv);
+  });
+  // Update sort headers
+  ['name','team','met','notMet','total','tickets','score'].forEach(col => {
+    const el = document.getElementById('sh-' + col);
+    if (el) el.textContent = col === sortCol ? (sortDir === 1 ? ' ↑' : ' ↓') : '';
+    const th = el?.parentElement;
+    if (th) th.classList.toggle('sort-active', col === sortCol);
+  });
+  const tbody = document.getElementById('eng-table-body');
+  tbody.innerHTML = eng.map((e, i) => `<tr>
+    <td style="color:var(--muted2);font-size:var(--fs-xs)">${i+1}</td>
+    <td>${hl(e.name, agentTerm)}</td>
+    <td><span style="font-size:var(--fs-xs);padding:2px 6px;background:rgba(61,142,240,0.1);border-radius:4px;color:var(--blue)">${e.team}</span></td>
+    <td style="font-family:'JetBrains Mono',monospace;color:var(--teal)">${e.met}</td>
+    <td style="font-family:'JetBrains Mono',monospace;color:${e.notMet>0?'var(--red)':'var(--muted2)'}">${e.notMet}</td>
+    <td style="font-family:'JetBrains Mono',monospace">${e.total}</td>
+    <td style="font-family:'JetBrains Mono',monospace">${e.tickets}</td>
+    <td><span class="pill ${pillClass(e.score)}">${e.score.toFixed(1)}%</span></td>
+  </tr>`).join('');
+
+  // Perfect grid
+  const perfect = eng.filter(e => e.score === 100);
+  document.getElementById('perfect-grid').innerHTML = perfect.map(e => `
+    <div class="perfect-card">
+      <div class="perfect-name">${hl(e.name, agentTerm)}</div>
+      <div class="perfect-team">${e.team}</div>
+      <div class="perfect-score">100% · ${e.tickets} tickets · ${e.total} params</div>
+    </div>
+  `).join('');
+
+  // Needs attention
+  const attn = eng.filter(e => e.score < 100).sort((a,b) => a.score - b.score);
+  const tbody2 = document.getElementById('attn-table-body');
+  tbody2.innerHTML = attn.map(e => {
+    let action, actionColor;
+    if (e.score < 90) { action = 'Urgent coaching required'; actionColor = 'var(--red)'; }
+    else if (e.notMet >= 2) { action = 'Review closure SOP'; actionColor = 'var(--orange)'; }
+    else { action = 'Monitor and follow up'; actionColor = 'var(--gold)'; }
+    return `<tr>
+      <td>${hl(e.name, agentTerm)}</td>
+      <td>${e.team}</td>
+      <td style="font-family:'JetBrains Mono',monospace;color:var(--teal)">${e.met}</td>
+      <td style="font-family:'JetBrains Mono',monospace;color:var(--red)">${e.notMet}</td>
+      <td><span class="pill ${pillClass(e.score)}">${e.score.toFixed(1)}%</span></td>
+      <td style="font-size:var(--fs-xs);color:${actionColor}">${action}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── EXEC SUMMARY KPIS ─────────────────────────────────────────────────
+function renderExecSummaryKPIs(f) {
+  const fa = filterAgents(f);
+  let met = 0, nm = 0, tickets = 0;
+  Object.values(fa).forEach(a => { met += a.met; nm += a.notMet; tickets += a.tickets; });
+  if (!f.team && !f.agent) {
+    if (f.week) { const w = WEEKLY[f.week]; met = w.met; nm = w.notMet; tickets = w.tickets; }
+    else { met = TOTAL_MET_ALL; nm = TOTAL_NM_ALL; tickets = TOTAL_TICKETS_ALL; }
+  }
+  const total = met + nm || 1;
+  document.getElementById('exec-score').textContent = (met/total*100).toFixed(2) + '%';
+  document.getElementById('exec-tickets').textContent = fmt(tickets);
+  document.getElementById('exec-engineers').textContent = Object.keys(fa).length;
+  document.getElementById('exec-noncompliant').textContent = nm;
+}
+
+// ── RENDER ALL ────────────────────────────────────────────────────────
+function renderAll(f) {
+  renderKPIs(f);
+  renderWeekCards(f);
+  renderCounter(f);
+  updateLineChart(f);
+  updateDoughnut(f);
+  updateTeamChart(f);
+  updateParetoChart(f);
+  updateEngChart(f);
+  renderTeamTable(f);
+  renderNMTable(f);
+  renderEngTable(f);
+  renderExecSummaryKPIs(f);
+}
+
+// ── SORT ──────────────────────────────────────────────────────────────
+function sortEngineers(col) {
+  if (sortCol === col) sortDir *= -1;
+  else { sortCol = col; sortDir = 1; }
+  renderAll(getFilters());
+}
+
+// ── TABS ──────────────────────────────────────────────────────────────
+function switchTab(idx) {
+  document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', i===idx));
+  document.querySelectorAll('.tab-panel').forEach((p,i) => p.classList.toggle('active', i===idx));
+}
+
+// ── RESET ─────────────────────────────────────────────────────────────
+function resetFilters() {
+  document.getElementById('f-week').value = '';
+  document.getElementById('f-team').value = '';
+  document.getElementById('f-eval').value = '';
+  document.getElementById('f-agent').value = '';
+  renderAll(getFilters());
+}
+
+// ── EVENT LISTENERS ───────────────────────────────────────────────────
+['f-week','f-team','f-eval'].forEach(id => {
+  document.getElementById(id).addEventListener('change', () => renderAll(getFilters()));
+});
+document.getElementById('f-agent').addEventListener('input', () => renderAll(getFilters()));
+
+// ── INIT ──────────────────────────────────────────────────────────────
+document.getElementById('exec-ts').textContent =
+  'Generated: ' + new Date().toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
+
+const engCount = Object.keys(AGENT_STATS).length;
+document.getElementById('dash-footer').textContent =
+  `${engCount} engineers · ${fmt(TOTAL_PARAMS_ALL)} parameters · ${fmt(TOTAL_TICKETS_ALL)} tickets · CW14–CW17`;
+
+populateFilters();
+initCharts();
+</script>
+</body>
+</html>
