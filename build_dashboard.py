@@ -286,6 +286,316 @@ def build_trend_chips(weekly):
 
 # ── HTML injector ──────────────────────────────────────────────────────
 
+
+# ══════════════════════════════════════════════════════════════════════
+#  DYNAMIC EXECUTIVE SUMMARY GENERATOR
+#  Called by inject() to replace all hardcoded text with live stats
+# ══════════════════════════════════════════════════════════════════════
+
+def generate_exec_summary(stats):
+    """
+    Generate all executive summary text dynamically from actual data.
+    Returns a dict of text blocks that replace the hardcoded April 2026 text.
+    """
+    s   = stats
+    ag  = s["agent_stats"]
+    wk  = s["weekly"]
+    nm  = s["nm_records"]
+
+    total_params  = s["t_params"]
+    total_met     = s["t_met"]
+    total_nm      = s["t_nm"]
+    total_tickets = s["t_tix"]
+    w_range       = s["w_range"]
+    weeks         = s["weeks"]
+
+    overall_score = round(total_met / total_params * 100, 2) if total_params else 0
+
+    # ── Team stats ─────────────────────────────────────────────────
+    team_map = {}
+    for name, a in ag.items():
+        t = a["team"]
+        if t not in team_map:
+            team_map[t] = {"met": 0, "notMet": 0, "tickets": 0}
+        team_map[t]["met"]     += a["met"]
+        team_map[t]["notMet"]  += a["notMet"]
+        team_map[t]["tickets"] += a["tickets"]
+
+    for t, d in team_map.items():
+        tot = d["met"] + d["notMet"]
+        d["score"] = round(d["met"] / tot * 100, 2) if tot else 0
+        d["total"] = tot
+
+    teams_sorted = sorted(team_map.items(), key=lambda x: x[1]["score"], reverse=True)
+    best_team    = teams_sorted[0]   if teams_sorted else ("—", {"score":0,"notMet":0,"tickets":0})
+    worst_team   = teams_sorted[-1]  if teams_sorted else ("—", {"score":0,"notMet":0,"tickets":0})
+
+    # ── Weekly stats ────────────────────────────────────────────────
+    wk_scores = []
+    for w, d in wk.items():
+        tot = d["met"] + d["notMet"]
+        wk_scores.append((w, round(d["met"]/tot*100, 2) if tot else 0, d["notMet"]))
+
+    best_week  = max(wk_scores, key=lambda x: x[1])  if wk_scores else ("—", 0, 0)
+    worst_week = min(wk_scores, key=lambda x: x[1])  if wk_scores else ("—", 0, 0)
+    first_week_score = wk_scores[0][1]  if wk_scores else 0
+    last_week_score  = wk_scores[-1][1] if wk_scores else 0
+    trend_direction  = "improved" if last_week_score >= first_week_score else "decreased"
+
+    # ── Engineer stats ──────────────────────────────────────────────
+    eng_scores = []
+    for name, a in ag.items():
+        tot = a["met"] + a["notMet"]
+        eng_scores.append({
+            "name":   name,
+            "team":   a["team"],
+            "met":    a["met"],
+            "notMet": a["notMet"],
+            "total":  tot,
+            "tickets":a["tickets"],
+            "score":  round(a["met"]/tot*100, 2) if tot else 0,
+        })
+
+    total_engineers = len(eng_scores)
+    perfect_count   = sum(1 for e in eng_scores if e["score"] == 100)
+    imperfect       = sorted([e for e in eng_scores if e["score"] < 100],
+                             key=lambda x: x["score"])
+
+    # ── NM analysis ─────────────────────────────────────────────────
+    # Top failing parameter
+    param_count = {}
+    for r in nm:
+        p = r.get("Audit Parameter", "Unknown")
+        param_count[p] = param_count.get(p, 0) + 1
+    top_param      = max(param_count, key=param_count.get) if param_count else "Closure Information"
+    top_param_count = param_count.get(top_param, 0)
+    top_param_pct  = round(top_param_count / total_nm * 100) if total_nm else 0
+
+    # Recurring offenders (agents with most NM)
+    agent_nm = {}
+    for r in nm:
+        a = r.get("Agent", "")
+        t = r.get("Teams", "")
+        if a:
+            agent_nm[a] = {"count": agent_nm.get(a, {}).get("count", 0) + 1, "team": t}
+    top_offenders = sorted(agent_nm.items(), key=lambda x: x[1]["count"], reverse=True)[:3]
+
+    # NM comment themes
+    all_comments = " ".join(r.get("Comments","").lower() for r in nm)
+    themes = []
+    if "rca" in all_comments or "root cause" in all_comments:
+        themes.append("missing RCA sections")
+    if "null" in all_comments or "close code" in all_comments:
+        themes.append("null close codes")
+    if "3-strike" in all_comments or "strike" in all_comments:
+        themes.append("3-strike process mismatches")
+    if "template" in all_comments:
+        themes.append("closure template gaps")
+    if not themes:
+        themes = ["process adherence gaps"]
+    theme_text = ", ".join(themes)
+
+    # ── Top performers (for reco section) ───────────────────────────
+    top_performers = sorted([e for e in eng_scores if e["score"] == 100],
+                            key=lambda x: x["tickets"], reverse=True)[:3]
+    top_names = ", ".join(e["name"] for e in top_performers) if top_performers else "top-performing engineers"
+
+    # ── Offender summary text ────────────────────────────────────────
+    if top_offenders:
+        off_parts = []
+        for name, d in top_offenders:
+            off_parts.append(f"{name} ({d['team']}) had {d['count']} Not-Met instance{'s' if d['count']>1 else ''}")
+        offender_text = "; ".join(off_parts) + ". These require immediate coaching."
+        offender_names = ", ".join(e[0] for e in top_offenders)
+    else:
+        offender_text  = "No recurring offenders identified this period."
+        offender_names = "identified engineers"
+
+    # ── Build all text blocks ────────────────────────────────────────
+    month_year = datetime.utcnow().strftime("%B %Y")
+
+    return dict(
+        # Exec header
+        exec_subtitle = f"Leadership review — ECMS IMS Tower · {month_year} · {w_range}",
+
+        # Strength 1: overall score
+        str1_title = f"{overall_score:.2f}% Overall Quality Score",
+        str1_body  = (f"The IMS tower delivered {overall_score:.2f}% compliance rate across "
+                      f"{total_params:,} audit parameters. "
+                      f"Only {total_nm} non-compliance{'s were' if total_nm!=1 else ' was'} recorded, "
+                      f"reflecting disciplined process adherence across {total_tickets} tickets."),
+
+        # Strength 2: weekly trend
+        str2_title = f"{'Improving' if trend_direction=='improved' else 'Notable'} Weekly Trend",
+        str2_body  = (f"{best_week[0]} achieved the lowest Not-Met count ({best_week[2]}) "
+                      f"of the entire review period, marking a clear {'upward' if trend_direction=='improved' else 'notable'} trajectory. "
+                      f"The quality score {'improved' if trend_direction=='improved' else 'moved'} from "
+                      f"{first_week_score:.2f}% in {weeks[0]} to {last_week_score:.2f}% in {weeks[-1]}."),
+
+        # Strength 3: best team
+        str3_title = f"{best_team[0]} Team Leading at {best_team[1]['score']:.2f}%",
+        str3_body  = (f"{best_team[0]} team achieved {best_team[1]['score']:.2f}% score "
+                      f"across {best_team[1]['tickets']} tickets with only "
+                      f"{best_team[1]['notMet']} non-compliance{'s' if best_team[1]['notMet']!=1 else ''}. "
+                      f"Multiple teams demonstrate consistent adherence to audit parameters."),
+
+        # Strength 4: perfect engineers
+        str4_title = f"High Perfect-Score Engineer Count",
+        str4_body  = (f"The majority of engineers ({perfect_count} out of {total_engineers}) "
+                      f"achieved a perfect 100% compliance score during {w_range}. "
+                      f"This demonstrates strong overall team capability and process awareness."),
+
+        # Issue 1: top failing parameter
+        iss1_title = f"{top_param} — {top_param_pct}% of Failures",
+        iss1_body  = (f"All {total_nm} Not-Met records are attributed to: {top_param}. "
+                      f"This indicates a systemic gap in process adoption "
+                      f"rather than broad non-compliance across parameters."),
+
+        # Issue 2: worst team
+        iss2_title = f"{worst_team[0]} Team — {worst_team[1]['score']:.2f}% Score",
+        iss2_body  = (f"{worst_team[0]} team recorded {worst_team[1]['notMet']} Not-Met instance"
+                      f"{'s' if worst_team[1]['notMet']!=1 else ''} "
+                      f"across {worst_team[1]['total']:,} parameters, the lowest score among all teams. "
+                      f"Targeted coaching around {top_param.lower()} is recommended urgently."),
+
+        # Issue 3: recurring offenders
+        iss3_title = "Recurring Offenders Identified",
+        iss3_body  = offender_text,
+
+        # Issue 4: template inconsistency
+        iss4_title = "Template Adoption Inconsistency",
+        iss4_body  = (f"Comments reveal varied failure modes: {theme_text}. "
+                      f"Standardisation of the {top_param.lower()} workflow is critical "
+                      f"to achieving consistent 100% compliance across all teams."),
+
+        # Recommendations
+        rec1_body  = (f"Issue a mandatory {top_param} SOP refresher to all IMS engineers. "
+                      f"Ensure the updated template includes all required sections. "
+                      f"Schedule within the next calendar week as an urgent action item."),
+
+        rec2_title = f"1:1 Coaching — {offender_names}",
+        rec2_body  = (f"Schedule immediate 1:1 coaching sessions for {offender_names}. "
+                      f"Focus sessions on {top_param.lower()}, close code accuracy, "
+                      f"and RCA documentation requirements."),
+
+        rec3_title = f"Recognise {best_week[0]} Performance",
+        rec3_body  = (f"Acknowledge {best_week[0]}'s achievement of {best_week[1]:.2f}% formally in team communications. "
+                      f"Recognising this performance reinforces desired behaviour across the team."),
+
+        rec4_title = f"{worst_team[0]} Team Structured Review",
+        rec4_body  = (f"Conduct a structured quality review specifically for the {worst_team[0]} team. "
+                      f"The {worst_team[1]['score']:.2f}% score is the lowest across all teams "
+                      f"and requires dedicated process alignment. Target 100% next period."),
+
+        rec5_body  = (f"Establish a clear close code selection guide integrated into ticket management tooling. "
+                      f"Null close codes and process mismatches indicate a gap between policy and practice."),
+
+        rec6_body  = (f"Document and share the workflows of top-performing engineers "
+                      f"({top_names}) as internal best-practice guides. "
+                      f"Peer learning from exemplars accelerates team-wide quality improvement."),
+    )
+
+
+def inject_exec_summary(html, stats):
+    """Replace all hardcoded executive summary text with dynamically generated text."""
+    t = generate_exec_summary(stats)
+
+    # ── Header subtitle ─────────────────────────────────────────────
+    html = re.sub(
+        r'<p>Leadership review — ECMS IMS Tower.*?</p>',
+        f'<p>{t["exec_subtitle"]}</p>',
+        html)
+
+    # ── Strengths section — replace each item ───────────────────────
+    # Strength 1: overall score
+    html = re.sub(
+        r'(<div class="exec-item">.*?<strong>)99\.5% Overall Quality Score(</strong>.*?<span>).*?(</span>.*?</div>)',
+        lambda m: m.group(1) + t["str1_title"] + m.group(2) + t["str1_body"] + m.group(3),
+        html, flags=re.DOTALL, count=1)
+
+    # Strength 2: weekly trend
+    html = re.sub(
+        r'(<div class="exec-item">.*?<strong>)Improving Weekly Trend(</strong>.*?<span>).*?(</span>.*?</div>)',
+        lambda m: m.group(1) + t["str2_title"] + m.group(2) + t["str2_body"] + m.group(3),
+        html, flags=re.DOTALL, count=1)
+
+    # Strength 3: best team
+    html = re.sub(
+        r'(<div class="exec-item">.*?<strong>)Workplace &amp; Network Teams Leading(</strong>.*?<span>).*?(</span>.*?</div>)',
+        lambda m: m.group(1) + t["str3_title"] + m.group(2) + t["str3_body"] + m.group(3),
+        html, flags=re.DOTALL, count=1)
+
+    # Strength 4: perfect engineers
+    html = re.sub(
+        r'(<div class="exec-item">.*?<strong>)High Perfect-Score Engineer Count(</strong>.*?<span>).*?(</span>.*?</div>)',
+        lambda m: m.group(1) + t["str4_title"] + m.group(2) + t["str4_body"] + m.group(3),
+        html, flags=re.DOTALL, count=1)
+
+    # ── Issues section ───────────────────────────────────────────────
+    # Issue 1: top failing param
+    html = re.sub(
+        r'(<div class="exec-item">.*?<strong>)Closure Information — 100% of Failures(</strong>.*?<span>).*?(</span>.*?</div>)',
+        lambda m: m.group(1) + t["iss1_title"] + m.group(2) + t["iss1_body"] + m.group(3),
+        html, flags=re.DOTALL, count=1)
+
+    # Issue 2: worst team
+    html = re.sub(
+        r'(<div class="exec-item">.*?<strong>)Security Team — 95\.8% Score(</strong>.*?<span>).*?(</span>.*?</div>)',
+        lambda m: m.group(1) + t["iss2_title"] + m.group(2) + t["iss2_body"] + m.group(3),
+        html, flags=re.DOTALL, count=1)
+
+    # Issue 3: recurring offenders
+    html = re.sub(
+        r'(<div class="exec-item">.*?<strong>)Recurring Offenders Identified(</strong>.*?<span>).*?(</span>.*?</div>)',
+        lambda m: m.group(1) + t["iss3_title"] + m.group(2) + t["iss3_body"] + m.group(3),
+        html, flags=re.DOTALL, count=1)
+
+    # Issue 4: template inconsistency
+    html = re.sub(
+        r'(<div class="exec-item">.*?<strong>)Template Adoption Inconsistency(</strong>.*?<span>).*?(</span>.*?</div>)',
+        lambda m: m.group(1) + t["iss4_title"] + m.group(2) + t["iss4_body"] + m.group(3),
+        html, flags=re.DOTALL, count=1)
+
+    # ── Recommendations ──────────────────────────────────────────────
+    # Rec 1: mandatory refresher
+    html = re.sub(
+        r'(<div class="reco-card">.*?<div class="reco-num"[^>]*>1</div>.*?<div class="reco-body">).*?(</div>\s*</div>)',
+        lambda m: m.group(1) + t["rec1_body"] + m.group(2),
+        html, flags=re.DOTALL, count=1)
+
+    # Rec 2: 1:1 coaching
+    html = re.sub(
+        r'(<div class="reco-card">.*?<div class="reco-num"[^>]*>2</div>.*?<div class="reco-title">).*?(</div>.*?<div class="reco-body">).*?(</div>\s*</div>)',
+        lambda m: m.group(1) + t["rec2_title"] + m.group(2) + t["rec2_body"] + m.group(3),
+        html, flags=re.DOTALL, count=1)
+
+    # Rec 3: recognise best week
+    html = re.sub(
+        r'(<div class="reco-card">.*?<div class="reco-num"[^>]*>3</div>.*?<div class="reco-title">).*?(</div>.*?<div class="reco-body">).*?(</div>\s*</div>)',
+        lambda m: m.group(1) + t["rec3_title"] + m.group(2) + t["rec3_body"] + m.group(3),
+        html, flags=re.DOTALL, count=1)
+
+    # Rec 4: worst team review
+    html = re.sub(
+        r'(<div class="reco-card">.*?<div class="reco-num"[^>]*>4</div>.*?<div class="reco-title">).*?(</div>.*?<div class="reco-body">).*?(</div>\s*</div>)',
+        lambda m: m.group(1) + t["rec4_title"] + m.group(2) + t["rec4_body"] + m.group(3),
+        html, flags=re.DOTALL, count=1)
+
+    # Rec 5: close code policy
+    html = re.sub(
+        r'(<div class="reco-card">.*?<div class="reco-num"[^>]*>5</div>.*?<div class="reco-body">).*?(</div>\s*</div>)',
+        lambda m: m.group(1) + t["rec5_body"] + m.group(2),
+        html, flags=re.DOTALL, count=1)
+
+    # Rec 6: best practices
+    html = re.sub(
+        r'(<div class="reco-card">.*?<div class="reco-num"[^>]*>6</div>.*?<div class="reco-body">).*?(</div>\s*</div>)',
+        lambda m: m.group(1) + t["rec6_body"] + m.group(2),
+        html, flags=re.DOTALL, count=1)
+
+    return html
+
+
 def inject(template, stats, file_names, is_live):
     """Replace only the data sections in the original HTML. CSS/layout unchanged."""
     h = template
@@ -342,6 +652,9 @@ def inject(template, stats, file_names, is_live):
         f'</div>\n'
     )
     h = h.replace('<!-- KPI CARDS -->', banner + '<!-- KPI CARDS -->')
+
+    # 9. Dynamic executive summary text
+    h = inject_exec_summary(h, stats)
 
     return h
 
